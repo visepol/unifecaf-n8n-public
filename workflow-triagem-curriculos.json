@@ -1,0 +1,1026 @@
+{
+    "updatedAt": "2026-03-09T23:47:48.331Z",
+    "createdAt": "2026-03-09T21:20:29.257Z",
+    "id": "Nb19upjeAx0p6SxM",
+    "name": "Triagem de Curr\u00edculos",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+        {
+            "parameters": {
+                "pollTimes": {
+                    "item": [
+                        {
+                            "mode": "everyMinute"
+                        }
+                    ]
+                },
+                "simple": false,
+                "filters": {},
+                "options": {
+                    "downloadAttachments": true
+                }
+            },
+            "id": "e5ebb887-012b-41c9-b790-f702f416289f",
+            "name": "Gmail Trigger",
+            "type": "n8n-nodes-base.gmailTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                -2048,
+                768
+            ],
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "f9DAFhy1oTidQk33",
+                    "name": "Gmail account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 1
+                    },
+                    "conditions": [
+                        {
+                            "id": "has-attachment",
+                            "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "a1f318c8-d250-4440-b3d0-6886dc101f3c",
+            "name": "Filtrar PDF",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                -1904,
+                1008
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "pdf",
+                "binaryPropertyName": "attachment_0",
+                "options": {}
+            },
+            "id": "56719d99-f5e4-4b5f-aeb6-d88ded5c73e7",
+            "name": "Extrair Texto PDF",
+            "type": "n8n-nodes-base.extractFromFile",
+            "typeVersion": 1,
+            "position": [
+                -1712,
+                912
+            ]
+        },
+        {
+            "parameters": {
+                "modelId": {
+                    "__rl": true,
+                    "value": "models/gemini-2.0-flash-lite",
+                    "mode": "list",
+                    "cachedResultName": "models/gemini-2.0-flash-lite"
+                },
+                "messages": {
+                    "values": [
+                        {
+                            "content": "=Voc\u00ea \u00e9 um recrutador de uma fintech. Analise o curr\u00edculo abaixo e determine se o candidato atende aos requisitos da vaga.\n\nREQUISITOS OBRIGAT\u00d3RIOS:\n- Desenvolvedor Senior (5+ anos de experi\u00eancia)\n- Experi\u00eancia com Node.js\n- Experi\u00eancia com AWS\n\nResponda APENAS no formato JSON abaixo, sem texto adicional, sem markdown:\n{\n  \"aprovado\": true ou false,\n  \"nome_candidato\": \"nome completo extra\u00eddo do curr\u00edculo\",\n  \"justificativa\": \"explique em 1 ou 2 frases por que foi aprovado ou rejeitado, citando os crit\u00e9rios\"\n}\n\nCURR\u00cdCULO:\n{{ $json.text }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "9e21b3a7-4bda-412e-b78b-b8686e4e29d4",
+            "name": "Gemini An\u00e1lise",
+            "type": "@n8n/n8n-nodes-langchain.googleGemini",
+            "typeVersion": 1,
+            "position": [
+                -1488,
+                912
+            ],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "9rjvTjL8xnsnlgIG",
+                    "name": "Google Gemini(PaLM) Api account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const geminiOutput = $input.first().json;\nconst response = geminiOutput.content.parts[0].text;\n\nlet parsed;\ntry {\n  let cleanResponse = response.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleanResponse);\n} catch (e) {\n  parsed = {\n    aprovado: false,\n    nome_candidato: 'N\u00e3o identificado',\n    justificativa: 'Erro ao processar resposta do Gemini: ' + e.message\n  };\n}\n\nconst emailOriginal = $('Gmail Trigger').first().json;\n\nreturn [{\n  json: {\n    aprovado: parsed.aprovado,\n    'Data': new Date().toISOString(),\n    'Nome Candidato': parsed.nome_candidato || 'N\u00e3o identificado',\n    'Email': emailOriginal.from.value[0].address,\n    'Status': parsed.aprovado ? 'Aprovado' : 'Rejeitado',\n    'Justificativa': parsed.justificativa\n  }\n}];"
+            },
+            "id": "188fdd1f-d4ad-4f73-a37a-452e232aa213",
+            "name": "Parse Resposta",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -1200,
+                816
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "leftValue": "",
+                        "caseSensitive": true,
+                        "typeValidation": "strict"
+                    },
+                    "combinator": "and",
+                    "conditions": [
+                        {
+                            "id": "check-approved",
+                            "leftValue": "={{ $json.aprovado }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "2763a2dd-8007-4459-9ad0-794f84f16083",
+            "name": "Aprovado?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                -1056,
+                912
+            ]
+        },
+        {
+            "parameters": {
+                "sendTo": "={{ $json.Email }}",
+                "subject": "Resposta do Processo Seletivo - Pr\u00f3ximas Etapas",
+                "message": "Prezado(a) Candidato(a),\n\nAgradecemos seu interesse em fazer parte da nossa equipe.\n\nAp\u00f3s an\u00e1lise do seu curr\u00edculo, temos o prazer de informar que seu perfil foi selecionado para a pr\u00f3xima etapa do processo seletivo.\n\nNossa equipe de RH entrar\u00e1 em contato em breve para agendar uma entrevista.\n\nAtenciosamente,\nEquipe de Recrutamento",
+                "options": {}
+            },
+            "id": "23ab7d25-a88f-4635-90ca-a5dfd78640cd",
+            "name": "Email Aprova\u00e7\u00e3o",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2.1,
+            "position": [
+                -832,
+                800
+            ],
+            "webhookId": "cc700cc8-aadc-432f-b04f-55ed965add92",
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "f9DAFhy1oTidQk33",
+                    "name": "Gmail account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "sendTo": "={{ $json.Email }}",
+                "subject": "Resposta do Processo Seletivo",
+                "message": "Prezado(a) Candidato(a),\n\nAgradecemos seu interesse em fazer parte da nossa equipe e o tempo dedicado ao nosso processo seletivo.\n\nAp\u00f3s an\u00e1lise criteriosa, identificamos que seu perfil n\u00e3o atende aos requisitos espec\u00edficos desta vaga no momento.\n\nManteremos seu curr\u00edculo em nosso banco de talentos para futuras oportunidades que estejam alinhadas ao seu perfil.\n\nDesejamos sucesso em sua trajet\u00f3ria profissional.\n\nAtenciosamente,\nEquipe de Recrutamento",
+                "options": {}
+            },
+            "id": "eb5602f2-b6f1-4f75-82cb-1874c7c172b8",
+            "name": "Email Rejei\u00e7\u00e3o",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2.1,
+            "position": [
+                -832,
+                1008
+            ],
+            "webhookId": "d97948a5-fa70-4362-8c27-ec55857b9772",
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "f9DAFhy1oTidQk33",
+                    "name": "Gmail account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1Nk2kpOA4orxRM-ldXi0D5L1mQeQAyye3rUnypjqmXCc",
+                    "mode": "id"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "P\u00e1gina1"
+                },
+                "columns": {
+                    "mappingMode": "autoMapInputData",
+                    "value": {},
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "Data",
+                            "displayName": "Data",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "Nome Candidato",
+                            "displayName": "Nome Candidato",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "Email",
+                            "displayName": "Email",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "Status",
+                            "displayName": "Status",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "Justificativa",
+                            "displayName": "Justificativa",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "id": "02592324-3a09-4b88-8d7b-07a48a8261eb",
+            "name": "Registrar Sheets (Aprovado)",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                -608,
+                800
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "jCvxyVaJ3KC1tbE2",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1Nk2kpOA4orxRM-ldXi0D5L1mQeQAyye3rUnypjqmXCc",
+                    "mode": "id"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "P\u00e1gina1",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Nk2kpOA4orxRM-ldXi0D5L1mQeQAyye3rUnypjqmXCc/edit#gid=0"
+                },
+                "columns": {
+                    "mappingMode": "autoMapInputData",
+                    "value": {},
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "Data",
+                            "displayName": "Data",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Nome Candidato",
+                            "displayName": "Nome Candidato",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Email",
+                            "displayName": "Email",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Status",
+                            "displayName": "Status",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Justificativa",
+                            "displayName": "Justificativa",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "id": "8a14059b-24f4-4d21-a8ab-adc37f764b45",
+            "name": "Registrar Sheets (Rejeitado)",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                -608,
+                1008
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "jCvxyVaJ3KC1tbE2",
+                    "name": "Google Sheets account"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Gmail Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Filtrar PDF",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Filtrar PDF": {
+            "main": [
+                [
+                    {
+                        "node": "Extrair Texto PDF",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extrair Texto PDF": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini An\u00e1lise",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini An\u00e1lise": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Resposta",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Resposta": {
+            "main": [
+                [
+                    {
+                        "node": "Aprovado?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Aprovado?": {
+            "main": [
+                [
+                    {
+                        "node": "Registrar Sheets (Aprovado)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Registrar Sheets (Rejeitado)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Registrar Sheets (Aprovado)": {
+            "main": [
+                [
+                    {
+                        "node": "Email Aprova\u00e7\u00e3o",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Registrar Sheets (Rejeitado)": {
+            "main": [
+                [
+                    {
+                        "node": "Email Rejei\u00e7\u00e3o",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "binaryMode": "separate",
+        "availableInMCP": false
+    },
+    "staticData": {
+        "node:Gmail Trigger": {
+            "Gmail Trigger": {
+                "lastTimeChecked": 1773100126,
+                "possibleDuplicates": [
+                    "19cd500d1cad1881",
+                    "19cd500a21825cf2",
+                    "19cd500763036ed7"
+                ]
+            }
+        }
+    },
+    "meta": {
+        "templateCredsSetupCompleted": true
+    },
+    "pinData": {},
+    "versionId": "797dab42-ab4d-4760-9493-ef19e56117eb",
+    "activeVersionId": "797dab42-ab4d-4760-9493-ef19e56117eb",
+    "versionCounter": 69,
+    "triggerCount": 1,
+    "shared": [
+        {
+            "updatedAt": "2026-03-09T21:20:29.259Z",
+            "createdAt": "2026-03-09T21:20:29.259Z",
+            "role": "workflow:owner",
+            "workflowId": "Nb19upjeAx0p6SxM",
+            "projectId": "rTDdD1d5qNnIwKv6",
+            "project": {
+                "updatedAt": "2026-03-09T16:43:09.565Z",
+                "createdAt": "2026-03-09T15:36:00.346Z",
+                "id": "rTDdD1d5qNnIwKv6",
+                "name": "Admin User <admin@localhost.com>",
+                "type": "personal",
+                "icon": null,
+                "description": null,
+                "creatorId": "648ecaca-8f7c-40a1-bdd8-03ff3e6a70c8"
+            }
+        }
+    ],
+    "tags": [],
+    "activeVersion": {
+        "updatedAt": "2026-03-09T23:48:08.000Z",
+        "createdAt": "2026-03-09T23:47:48.333Z",
+        "versionId": "797dab42-ab4d-4760-9493-ef19e56117eb",
+        "workflowId": "Nb19upjeAx0p6SxM",
+        "nodes": [
+            {
+                "parameters": {
+                    "pollTimes": {
+                        "item": [
+                            {
+                                "mode": "everyMinute"
+                            }
+                        ]
+                    },
+                    "simple": false,
+                    "filters": {},
+                    "options": {
+                        "downloadAttachments": true
+                    }
+                },
+                "id": "e5ebb887-012b-41c9-b790-f702f416289f",
+                "name": "Gmail Trigger",
+                "type": "n8n-nodes-base.gmailTrigger",
+                "typeVersion": 1.2,
+                "position": [
+                    -2048,
+                    768
+                ],
+                "credentials": {
+                    "gmailOAuth2": {
+                        "id": "f9DAFhy1oTidQk33",
+                        "name": "Gmail account"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "options": {
+                            "caseSensitive": true,
+                            "leftValue": "",
+                            "typeValidation": "strict",
+                            "version": 1
+                        },
+                        "conditions": [
+                            {
+                                "id": "has-attachment",
+                                "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+                                "rightValue": true,
+                                "operator": {
+                                    "type": "boolean",
+                                    "operation": "equals"
+                                }
+                            }
+                        ],
+                        "combinator": "and"
+                    },
+                    "options": {}
+                },
+                "id": "a1f318c8-d250-4440-b3d0-6886dc101f3c",
+                "name": "Filtrar PDF",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2,
+                "position": [
+                    -1904,
+                    1008
+                ]
+            },
+            {
+                "parameters": {
+                    "operation": "pdf",
+                    "binaryPropertyName": "attachment_0",
+                    "options": {}
+                },
+                "id": "56719d99-f5e4-4b5f-aeb6-d88ded5c73e7",
+                "name": "Extrair Texto PDF",
+                "type": "n8n-nodes-base.extractFromFile",
+                "typeVersion": 1,
+                "position": [
+                    -1712,
+                    912
+                ]
+            },
+            {
+                "parameters": {
+                    "modelId": {
+                        "__rl": true,
+                        "value": "models/gemini-2.0-flash-lite",
+                        "mode": "list",
+                        "cachedResultName": "models/gemini-2.0-flash-lite"
+                    },
+                    "messages": {
+                        "values": [
+                            {
+                                "content": "=Voc\u00ea \u00e9 um recrutador de uma fintech. Analise o curr\u00edculo abaixo e determine se o candidato atende aos requisitos da vaga.\n\nREQUISITOS OBRIGAT\u00d3RIOS:\n- Desenvolvedor Senior (5+ anos de experi\u00eancia)\n- Experi\u00eancia com Node.js\n- Experi\u00eancia com AWS\n\nResponda APENAS no formato JSON abaixo, sem texto adicional, sem markdown:\n{\n  \"aprovado\": true ou false,\n  \"nome_candidato\": \"nome completo extra\u00eddo do curr\u00edculo\",\n  \"justificativa\": \"explique em 1 ou 2 frases por que foi aprovado ou rejeitado, citando os crit\u00e9rios\"\n}\n\nCURR\u00cdCULO:\n{{ $json.text }}"
+                            }
+                        ]
+                    },
+                    "options": {}
+                },
+                "id": "9e21b3a7-4bda-412e-b78b-b8686e4e29d4",
+                "name": "Gemini An\u00e1lise",
+                "type": "@n8n/n8n-nodes-langchain.googleGemini",
+                "typeVersion": 1,
+                "position": [
+                    -1488,
+                    912
+                ],
+                "credentials": {
+                    "googlePalmApi": {
+                        "id": "9rjvTjL8xnsnlgIG",
+                        "name": "Google Gemini(PaLM) Api account"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "jsCode": "const geminiOutput = $input.first().json;\nconst response = geminiOutput.content.parts[0].text;\n\nlet parsed;\ntry {\n  let cleanResponse = response.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleanResponse);\n} catch (e) {\n  parsed = {\n    aprovado: false,\n    nome_candidato: 'N\u00e3o identificado',\n    justificativa: 'Erro ao processar resposta do Gemini: ' + e.message\n  };\n}\n\nconst emailOriginal = $('Gmail Trigger').first().json;\n\nreturn [{\n  json: {\n    aprovado: parsed.aprovado,\n    'Data': new Date().toISOString(),\n    'Nome Candidato': parsed.nome_candidato || 'N\u00e3o identificado',\n    'Email': emailOriginal.from.value[0].address,\n    'Status': parsed.aprovado ? 'Aprovado' : 'Rejeitado',\n    'Justificativa': parsed.justificativa\n  }\n}];"
+                },
+                "id": "188fdd1f-d4ad-4f73-a37a-452e232aa213",
+                "name": "Parse Resposta",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [
+                    -1200,
+                    816
+                ]
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "options": {
+                            "leftValue": "",
+                            "caseSensitive": true,
+                            "typeValidation": "strict"
+                        },
+                        "combinator": "and",
+                        "conditions": [
+                            {
+                                "id": "check-approved",
+                                "leftValue": "={{ $json.aprovado }}",
+                                "rightValue": true,
+                                "operator": {
+                                    "type": "boolean",
+                                    "operation": "equals"
+                                }
+                            }
+                        ]
+                    },
+                    "options": {}
+                },
+                "id": "2763a2dd-8007-4459-9ad0-794f84f16083",
+                "name": "Aprovado?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2,
+                "position": [
+                    -1056,
+                    912
+                ]
+            },
+            {
+                "parameters": {
+                    "sendTo": "={{ $json.Email }}",
+                    "subject": "Resposta do Processo Seletivo - Pr\u00f3ximas Etapas",
+                    "message": "Prezado(a) Candidato(a),\n\nAgradecemos seu interesse em fazer parte da nossa equipe.\n\nAp\u00f3s an\u00e1lise do seu curr\u00edculo, temos o prazer de informar que seu perfil foi selecionado para a pr\u00f3xima etapa do processo seletivo.\n\nNossa equipe de RH entrar\u00e1 em contato em breve para agendar uma entrevista.\n\nAtenciosamente,\nEquipe de Recrutamento",
+                    "options": {}
+                },
+                "id": "23ab7d25-a88f-4635-90ca-a5dfd78640cd",
+                "name": "Email Aprova\u00e7\u00e3o",
+                "type": "n8n-nodes-base.gmail",
+                "typeVersion": 2.1,
+                "position": [
+                    -832,
+                    800
+                ],
+                "webhookId": "cc700cc8-aadc-432f-b04f-55ed965add92",
+                "credentials": {
+                    "gmailOAuth2": {
+                        "id": "f9DAFhy1oTidQk33",
+                        "name": "Gmail account"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "sendTo": "={{ $json.Email }}",
+                    "subject": "Resposta do Processo Seletivo",
+                    "message": "Prezado(a) Candidato(a),\n\nAgradecemos seu interesse em fazer parte da nossa equipe e o tempo dedicado ao nosso processo seletivo.\n\nAp\u00f3s an\u00e1lise criteriosa, identificamos que seu perfil n\u00e3o atende aos requisitos espec\u00edficos desta vaga no momento.\n\nManteremos seu curr\u00edculo em nosso banco de talentos para futuras oportunidades que estejam alinhadas ao seu perfil.\n\nDesejamos sucesso em sua trajet\u00f3ria profissional.\n\nAtenciosamente,\nEquipe de Recrutamento",
+                    "options": {}
+                },
+                "id": "eb5602f2-b6f1-4f75-82cb-1874c7c172b8",
+                "name": "Email Rejei\u00e7\u00e3o",
+                "type": "n8n-nodes-base.gmail",
+                "typeVersion": 2.1,
+                "position": [
+                    -832,
+                    1008
+                ],
+                "webhookId": "d97948a5-fa70-4362-8c27-ec55857b9772",
+                "credentials": {
+                    "gmailOAuth2": {
+                        "id": "f9DAFhy1oTidQk33",
+                        "name": "Gmail account"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "operation": "append",
+                    "documentId": {
+                        "__rl": true,
+                        "value": "1Nk2kpOA4orxRM-ldXi0D5L1mQeQAyye3rUnypjqmXCc",
+                        "mode": "id"
+                    },
+                    "sheetName": {
+                        "__rl": true,
+                        "value": "gid=0",
+                        "mode": "list",
+                        "cachedResultName": "P\u00e1gina1"
+                    },
+                    "columns": {
+                        "mappingMode": "autoMapInputData",
+                        "value": {},
+                        "matchingColumns": [],
+                        "schema": [
+                            {
+                                "id": "Data",
+                                "displayName": "Data",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true,
+                                "removed": false
+                            },
+                            {
+                                "id": "Nome Candidato",
+                                "displayName": "Nome Candidato",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true,
+                                "removed": false
+                            },
+                            {
+                                "id": "Email",
+                                "displayName": "Email",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true,
+                                "removed": false
+                            },
+                            {
+                                "id": "Status",
+                                "displayName": "Status",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true,
+                                "removed": false
+                            },
+                            {
+                                "id": "Justificativa",
+                                "displayName": "Justificativa",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true,
+                                "removed": false
+                            }
+                        ],
+                        "attemptToConvertTypes": false,
+                        "convertFieldsToString": false
+                    },
+                    "options": {}
+                },
+                "id": "02592324-3a09-4b88-8d7b-07a48a8261eb",
+                "name": "Registrar Sheets (Aprovado)",
+                "type": "n8n-nodes-base.googleSheets",
+                "typeVersion": 4.5,
+                "position": [
+                    -608,
+                    800
+                ],
+                "credentials": {
+                    "googleSheetsOAuth2Api": {
+                        "id": "jCvxyVaJ3KC1tbE2",
+                        "name": "Google Sheets account"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "operation": "append",
+                    "documentId": {
+                        "__rl": true,
+                        "value": "1Nk2kpOA4orxRM-ldXi0D5L1mQeQAyye3rUnypjqmXCc",
+                        "mode": "id"
+                    },
+                    "sheetName": {
+                        "__rl": true,
+                        "value": "gid=0",
+                        "mode": "list",
+                        "cachedResultName": "P\u00e1gina1",
+                        "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Nk2kpOA4orxRM-ldXi0D5L1mQeQAyye3rUnypjqmXCc/edit#gid=0"
+                    },
+                    "columns": {
+                        "mappingMode": "autoMapInputData",
+                        "value": {},
+                        "matchingColumns": [],
+                        "schema": [
+                            {
+                                "id": "Data",
+                                "displayName": "Data",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true
+                            },
+                            {
+                                "id": "Nome Candidato",
+                                "displayName": "Nome Candidato",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true
+                            },
+                            {
+                                "id": "Email",
+                                "displayName": "Email",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true
+                            },
+                            {
+                                "id": "Status",
+                                "displayName": "Status",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true
+                            },
+                            {
+                                "id": "Justificativa",
+                                "displayName": "Justificativa",
+                                "required": false,
+                                "defaultMatch": false,
+                                "display": true,
+                                "type": "string",
+                                "canBeUsedToMatch": true
+                            }
+                        ],
+                        "attemptToConvertTypes": false,
+                        "convertFieldsToString": false
+                    },
+                    "options": {}
+                },
+                "id": "8a14059b-24f4-4d21-a8ab-adc37f764b45",
+                "name": "Registrar Sheets (Rejeitado)",
+                "type": "n8n-nodes-base.googleSheets",
+                "typeVersion": 4.5,
+                "position": [
+                    -608,
+                    1008
+                ],
+                "credentials": {
+                    "googleSheetsOAuth2Api": {
+                        "id": "jCvxyVaJ3KC1tbE2",
+                        "name": "Google Sheets account"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Gmail Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Filtrar PDF",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Filtrar PDF": {
+                "main": [
+                    [
+                        {
+                            "node": "Extrair Texto PDF",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Extrair Texto PDF": {
+                "main": [
+                    [
+                        {
+                            "node": "Gemini An\u00e1lise",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Gemini An\u00e1lise": {
+                "main": [
+                    [
+                        {
+                            "node": "Parse Resposta",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Parse Resposta": {
+                "main": [
+                    [
+                        {
+                            "node": "Aprovado?",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Aprovado?": {
+                "main": [
+                    [
+                        {
+                            "node": "Registrar Sheets (Aprovado)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "Registrar Sheets (Rejeitado)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Registrar Sheets (Aprovado)": {
+                "main": [
+                    [
+                        {
+                            "node": "Email Aprova\u00e7\u00e3o",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Registrar Sheets (Rejeitado)": {
+                "main": [
+                    [
+                        {
+                            "node": "Email Rejei\u00e7\u00e3o",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "authors": "Admin User",
+        "name": "Version 797dab42",
+        "description": "",
+        "autosaved": true,
+        "workflowPublishHistory": [
+            {
+                "createdAt": "2026-03-09T23:48:08.247Z",
+                "id": 11,
+                "workflowId": "Nb19upjeAx0p6SxM",
+                "versionId": "797dab42-ab4d-4760-9493-ef19e56117eb",
+                "event": "activated",
+                "userId": "648ecaca-8f7c-40a1-bdd8-03ff3e6a70c8"
+            }
+        ]
+    }
+}
